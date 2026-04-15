@@ -55,12 +55,14 @@ Cloudflare Tunnel deploy:
 
 ```bash
 cp .env.example .env
-docker compose --profile tunnel up -d --build
+make publish
 ```
 
 Notes for the tunnel setup:
 
 - The `cloudflared` container waits for `webserver` health before connecting.
+- `make publish` requires `.env` and refuses to run if `CLOUDFLARE_TUNNEL_TOKEN` is blank.
+- `make publish` defaults `APP_HOSTNAME` to `monitor.namjaeyoun.com` unless you override it in your shell or `.env`.
 - You can keep `WEB_PORT` published for local fallback access, or change it if `4748` is already in use.
 - Public traffic should terminate at Cloudflare and then enter the internal Docker network through the tunnel.
 - This repository does not provision the Cloudflare DNS/public hostname automatically; that mapping must exist in Cloudflare first.
