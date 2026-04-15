@@ -60,7 +60,7 @@ services:
     depends_on:
       webserver:
         condition: service_healthy
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN} --url http://webserver:80
 
 volumes:
   postgres_data:
