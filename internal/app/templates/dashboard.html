@@ -140,21 +140,17 @@
       font-size: 16px;
     }
 
-    .accounts-grid,
+    .accounts-list,
     .chart-grid {
       display: grid;
       gap: 16px;
     }
 
-    .accounts-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .chart-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .account-card,
+    .account-row,
     .chart-wrap,
     .panel,
     .empty {
@@ -170,7 +166,7 @@
 
     .label,
     .account-meta,
-    .quota-sub,
+    .bar-meta,
     .empty,
     .detail-grid,
     .detail-row-label {
@@ -186,37 +182,45 @@
       text-transform: uppercase;
     }
 
-    .quota-value,
-    .account-plan {
+    .account-plan,
+    .bar-value {
       font-family: var(--font-display);
       color: var(--fg);
     }
 
-    .accounts-grid {
+    .accounts-list {
       align-items: stretch;
     }
 
-    .account-card {
-      padding: 22px;
+    .account-row {
       display: grid;
+      grid-template-columns: minmax(220px, 1.2fr) minmax(0, 1.6fr) minmax(0, 1.6fr) auto;
       gap: 18px;
+      align-items: center;
+      padding: 18px 20px;
       cursor: pointer;
       transition: background-color 120ms ease, border-color 120ms ease;
     }
 
-    .account-card:hover {
+    .account-row:hover {
       background: var(--surface-hover);
       border-color: var(--border-strong);
     }
 
-    .account-card.selected {
+    .account-row.selected {
       border-color: var(--border-strong);
       background: rgba(255, 255, 255, 0.05);
     }
 
+    .account-main {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
     .account-name {
       margin: 0;
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 400;
       line-height: 1.2;
       overflow-wrap: anywhere;
@@ -241,17 +245,17 @@
       overflow-wrap: anywhere;
     }
 
-    .quota-grid {
+    .limit-bar {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
+      gap: 8px;
+      min-width: 0;
     }
 
-    .quota-card {
-      padding: 16px;
-      border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.02);
-      display: grid;
+    .bar-top,
+    .bar-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       gap: 12px;
     }
 
@@ -260,14 +264,14 @@
       font-size: 12px;
     }
 
-    .quota-value {
-      font-size: 34px;
+    .bar-value {
+      font-size: 22px;
       line-height: 1;
     }
 
     .meter {
       width: 100%;
-      height: 10px;
+      height: 12px;
       border: 1px solid var(--border);
       background: transparent;
       overflow: hidden;
@@ -286,21 +290,18 @@
       background: rgba(255, 255, 255, 0.36);
     }
 
-    .quota-sub {
-      display: grid;
-      gap: 4px;
-    }
-
-    .quota-reset {
+    .bar-reset {
       color: var(--fg);
-      font-size: 15px;
+      font-size: 13px;
     }
 
     .detail-grid {
       display: grid;
       gap: 12px;
-      border-top: 1px solid var(--border);
-      padding-top: 14px;
+      min-width: 0;
+      width: 180px;
+      justify-self: end;
+      justify-items: end;
     }
 
     .detail-row {
@@ -308,6 +309,7 @@
       align-items: center;
       justify-content: space-between;
       gap: 16px;
+      width: 100%;
     }
 
     .detail-value {
@@ -360,9 +362,24 @@
     }
 
     @media (max-width: 1080px) {
-      .accounts-grid,
       .chart-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .account-row {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+
+      .detail-grid {
+        width: 100%;
+        min-width: 0;
+        border-top: 1px solid var(--border);
+        padding-top: 12px;
+        justify-self: stretch;
+        justify-items: start;
       }
     }
 
@@ -376,16 +393,23 @@
       .section-head,
       .chart-head,
       .quota-head,
-      .card-top,
       .detail-row {
         flex-direction: column;
         align-items: flex-start;
       }
 
-      .accounts-grid,
-      .chart-grid,
-      .quota-grid {
+      .chart-grid {
         grid-template-columns: 1fr;
+      }
+
+      .bar-top,
+      .bar-meta {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .detail-row {
+        flex-direction: row;
       }
     }
   </style>
@@ -410,10 +434,10 @@
           <div class="section-kicker">Live Board</div>
           <h1 class="section-title">Per-Account Limits</h1>
         </div>
-        <div class="section-copy">Click any card to lock the detailed history view below. Each card shows both quota windows, remaining percentage, and reset countdown.</div>
+        <div class="section-copy">Each account is rendered as one row. Compare 5-hour and weekly remaining budget side by side, then click a row only when you need detailed history below.</div>
       </div>
 
-      <div class="accounts-grid" id="accounts-grid">
+      <div class="accounts-list" id="accounts-grid">
         <div class="empty">Loading accounts...</div>
       </div>
     </section>
@@ -542,20 +566,18 @@
       document.getElementById('last-refresh-chip').textContent = `Last refresh ${lastSuccess ? fmtTime(lastSuccess) : "--"}`;
     }
 
-    function renderQuotaCard(label, remaining, resetsAt) {
+    function renderLimitBar(label, remaining, resetsAt) {
       return `
-        <div class="quota-card">
-          <div class="quota-head">
+        <div class="limit-bar">
+          <div class="bar-top">
             <div class="quota-label">${label}</div>
-            <div class="pill">${fmtCountdown(resetsAt)}</div>
+            <div class="bar-value">${fmtPct(remaining)}</div>
           </div>
-          <div class="quota-value">${fmtPct(remaining)}</div>
           <div class="meter">
             <div class="meter-fill ${progressClass(remaining)}" style="width: ${clampPercent(remaining)}%"></div>
           </div>
-          <div class="quota-sub">
-            <div class="quota-reset">resets in ${fmtCountdown(resetsAt)}</div>
-            <div>${fmtDate(resetsAt)}</div>
+          <div class="bar-meta">
+            <div class="bar-reset">resets in ${fmtCountdown(resetsAt)}</div>
           </div>
         </div>
       `;
@@ -571,8 +593,8 @@
       grid.innerHTML = accounts.map(account => {
         const selectedClass = state.selected && state.selected.id === account.id ? ' selected' : '';
         return `
-          <article class="account-card${selectedClass}" data-account-id="${account.id}">
-            <div class="card-top">
+          <article class="account-row${selectedClass}" data-account-id="${account.id}">
+            <div class="account-main">
               <div>
                 <h3 class="account-name">${escapeHTML(accountLabel(account))}</h3>
                 <div class="account-meta">
@@ -580,20 +602,14 @@
                   <div class="account-id">${escapeHTML(account.chatgptAccountId || "--")}</div>
                 </div>
               </div>
-              <div class="pill">${escapeHTML(statusText(account))}</div>
             </div>
-            <div class="quota-grid">
-              ${renderQuotaCard("5H", account.fiveHourRemaining, account.fiveHourResetsAt)}
-              ${renderQuotaCard("Weekly", account.weeklyRemaining, account.weeklyResetsAt)}
-            </div>
+            ${renderLimitBar("5H", account.fiveHourRemaining, account.fiveHourResetsAt)}
+            ${renderLimitBar("Weekly", account.weeklyRemaining, account.weeklyResetsAt)}
             <div class="detail-grid">
+              <div class="pill">${escapeHTML(statusText(account))}</div>
               <div class="detail-row">
                 <span class="detail-row-label">Last success</span>
                 <span class="detail-value">${escapeHTML(fmtDate(account.lastSuccessAt))}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-row-label">Source</span>
-                <span class="detail-value">${escapeHTML(account.accountKey)}</span>
               </div>
             </div>
           </article>
