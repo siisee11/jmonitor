@@ -1,4 +1,4 @@
-.PHONY: publish
+.PHONY: publish unpublish
 
 ENV_FILE ?= .env
 
@@ -14,3 +14,10 @@ publish:
 	@CLAUDE_CREDENTIALS_JSON="$${CLAUDE_CREDENTIALS_JSON:-$$(security find-generic-password -s 'Claude Code-credentials' -a "$$(id -un)" -w 2>/dev/null || true)}" \
 	APP_HOSTNAME="$${APP_HOSTNAME:-monitor.namjaeyoun.com}" \
 	docker compose --env-file "$(ENV_FILE)" --profile tunnel up -d --build
+
+unpublish:
+	@if [ -f "$(ENV_FILE)" ]; then \
+		docker compose --env-file "$(ENV_FILE)" --profile tunnel down; \
+	else \
+		docker compose --profile tunnel down; \
+	fi

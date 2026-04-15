@@ -65,10 +65,17 @@ cp .env.example .env
 make publish
 ```
 
+Stop the published stack:
+
+```bash
+make unpublish
+```
+
 Notes for the tunnel setup:
 
 - The `cloudflared` container waits for `webserver` health before connecting.
 - `make publish` requires `.env` and refuses to run if `CLOUDFLARE_TUNNEL_TOKEN` is blank.
+- `make unpublish` stops the compose stack and tunnel profile but leaves the PostgreSQL volume intact.
 - `make publish` defaults `APP_HOSTNAME` to `monitor.namjaeyoun.com` unless you override it in your shell or `.env`.
 - You can keep `WEB_PORT` published for local fallback access, or change it if `4748` is already in use.
 - Public traffic should terminate at Cloudflare and then enter the internal Docker network through the tunnel.
