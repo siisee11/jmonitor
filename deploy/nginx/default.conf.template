@@ -1,6 +1,6 @@
 server {
   listen 80;
-  server_name _;
+  server_name ${APP_HOSTNAME};
 
   location / {
     proxy_pass http://server:8080;
