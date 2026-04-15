@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>jmonitor</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --fg: #1f1b16;
+      --muted: #6f665d;
+      --card: #fffdf9;
+      --line: #d6cdc1;
+      --accent: #0b6e4f;
+      --accent-2: #b85c38;
+      --danger: #ad2e24;
+      --warn: #9a6a00;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--fg);
+      background:
+        radial-gradient(circle at top right, rgba(184, 92, 56, 0.16), transparent 30%),
+        radial-gradient(circle at top left, rgba(11, 110, 79, 0.12), transparent 35%),
+        var(--bg);
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 20px 40px;
+    }
+    header {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 40px;
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .card, .table-wrap, .chart-wrap {
+      background: rgba(255,255,255,0.78);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(214,205,193,0.9);
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(36, 28, 20, 0.06);
+    }
+    .card {
+      padding: 18px;
+      display: grid;
+      gap: 8px;
+    }
+    .label {
+      color: var(--muted);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .value {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+    .small {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .table-wrap, .chart-wrap {
+      overflow: hidden;
+      margin-top: 16px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(214,205,193,0.7);
+      text-align: left;
+      font-size: 14px;
+      vertical-align: middle;
+    }
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: rgba(11,110,79,0.05); }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+      background: var(--accent);
+    }
+    .pill.warn { background: var(--warn); }
+    .pill.danger { background: var(--danger); }
+    .chart-wrap {
+      padding: 18px;
+      display: grid;
+      gap: 12px;
+    }
+    .chart-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .chart-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+    .chart-sub {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .panel {
+      border: 1px solid rgba(214,205,193,0.8);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(255,253,249,0.9);
+    }
+    svg {
+      width: 100%;
+      height: 200px;
+      display: block;
+    }
+    .empty {
+      padding: 18px;
+      color: var(--muted);
+    }
+    @media (max-width: 800px) {
+      .chart-grid {
+        grid-template-columns: 1fr;
+      }
+      h1 { font-size: 32px; }
+      th:nth-child(4), td:nth-child(4),
+      th:nth-child(7), td:nth-child(7) {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Codex Remaining Monitor</h1>
+      <div class="sub">Polling every {{ .PollInterval }} from {{ .CodexHome }}/accounts/*.auth.json into local PostgreSQL.</div>
+    </header>
+
+    <section class="grid" id="summary-grid">
+      <div class="card"><div class="label">Accounts</div><div class="value" id="count-accounts">-</div><div class="small">discovered account snapshots</div></div>
+      <div class="card"><div class="label">Lowest 5H</div><div class="value" id="lowest-five-hour">-</div><div class="small" id="lowest-five-hour-name">-</div></div>
+      <div class="card"><div class="label">Lowest Weekly</div><div class="value" id="lowest-weekly">-</div><div class="small" id="lowest-weekly-name">-</div></div>
+      <div class="card"><div class="label">Last Refresh</div><div class="value" id="last-refresh">-</div><div class="small">most recent successful poll</div></div>
+    </section>
+
+    <section class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Account</th>
+            <th>Plan</th>
+            <th>5H Remaining</th>
+            <th>5H Reset</th>
+            <th>Weekly Remaining</th>
+            <th>Status</th>
+            <th>Last Success</th>
+          </tr>
+        </thead>
+        <tbody id="accounts-body">
+          <tr><td colspan="7" class="empty">Loading accounts...</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="chart-wrap">
+      <div class="chart-head">
+        <div>
+          <div class="chart-title" id="chart-account-title">Select an account</div>
+          <div class="chart-sub" id="chart-account-sub">Click any table row to view recent history.</div>
+        </div>
+      </div>
+      <div class="chart-grid">
+        <div class="panel">
+          <div class="label">5H Remaining</div>
+          <svg id="chart-five-hour" viewBox="0 0 400 200" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="panel">
+          <div class="label">Weekly Remaining</div>
+          <svg id="chart-weekly" viewBox="0 0 400 200" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const state = { accounts: [], selected: null };
+
+    async function fetchJSON(url) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(await res.text());
+      return await res.json();
+    }
+
+    function fmtPct(value) {
+      if (value == null) return "--";
+      return value.toFixed(1) + "%";
+    }
+
+    function fmtDate(value) {
+      if (!value) return "--";
+      return new Date(value).toLocaleString();
+    }
+
+    function statusPill(account) {
+      if (account.lastError) return '<span class="pill danger">poll error</span>';
+      if (account.fiveHourRemaining != null && account.fiveHourRemaining < 15) return '<span class="pill danger">low 5h</span>';
+      if (account.weeklyRemaining != null && account.weeklyRemaining < 10) return '<span class="pill warn">low weekly</span>';
+      return '<span class="pill">healthy</span>';
+    }
+
+    function accountLabel(account) {
+      return account.email || account.accountKey;
+    }
+
+    function renderSummary(accounts) {
+      document.getElementById('count-accounts').textContent = String(accounts.length);
+      const lastSuccess = accounts
+        .map(a => a.lastSuccessAt ? new Date(a.lastSuccessAt).getTime() : 0)
+        .reduce((a, b) => Math.max(a, b), 0);
+      document.getElementById('last-refresh').textContent = lastSuccess ? new Date(lastSuccess).toLocaleTimeString() : "--";
+
+      const lowestFive = accounts
+        .filter(a => a.fiveHourRemaining != null)
+        .sort((a, b) => a.fiveHourRemaining - b.fiveHourRemaining)[0];
+      document.getElementById('lowest-five-hour').textContent = lowestFive ? fmtPct(lowestFive.fiveHourRemaining) : "--";
+      document.getElementById('lowest-five-hour-name').textContent = lowestFive ? accountLabel(lowestFive) : "--";
+
+      const lowestWeekly = accounts
+        .filter(a => a.weeklyRemaining != null)
+        .sort((a, b) => a.weeklyRemaining - b.weeklyRemaining)[0];
+      document.getElementById('lowest-weekly').textContent = lowestWeekly ? fmtPct(lowestWeekly.weeklyRemaining) : "--";
+      document.getElementById('lowest-weekly-name').textContent = lowestWeekly ? accountLabel(lowestWeekly) : "--";
+    }
+
+    function renderTable(accounts) {
+      const tbody = document.getElementById('accounts-body');
+      if (accounts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">No Codex account snapshots found under CODEX_HOME/accounts.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = accounts.map(account => {
+        return `
+          <tr data-account-id="${account.id}">
+            <td><strong>${escapeHTML(accountLabel(account))}</strong><br><span class="small">${escapeHTML(account.chatgptAccountId)}</span></td>
+            <td>${escapeHTML(account.plan || "--")}</td>
+            <td>${fmtPct(account.fiveHourRemaining)}</td>
+            <td>${fmtDate(account.fiveHourResetsAt)}</td>
+            <td>${fmtPct(account.weeklyRemaining)}</td>
+            <td>${statusPill(account)}</td>
+            <td>${fmtDate(account.lastSuccessAt)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.querySelectorAll('tr[data-account-id]').forEach(row => {
+        row.addEventListener('click', () => {
+          const account = state.accounts.find(item => String(item.id) === row.dataset.accountId);
+          if (account) selectAccount(account);
+        });
+      });
+    }
+
+    async function selectAccount(account) {
+      state.selected = account;
+      document.getElementById('chart-account-title').textContent = accountLabel(account);
+      document.getElementById('chart-account-sub').textContent = `Plan ${account.plan || "--"} · ${account.chatgptAccountId}`;
+
+      const [fiveHour, weekly] = await Promise.all([
+        fetchJSON(`/api/accounts/${account.id}/history?window=five_hour&limit=288`),
+        fetchJSON(`/api/accounts/${account.id}/history?window=weekly&limit=288`)
+      ]);
+      renderSeries(document.getElementById('chart-five-hour'), fiveHour.points, '#0b6e4f');
+      renderSeries(document.getElementById('chart-weekly'), weekly.points, '#b85c38');
+    }
+
+    function renderSeries(svg, points, color) {
+      if (!points || points.length === 0) {
+        svg.innerHTML = `<text x="12" y="24" fill="#6f665d" font-size="14">No data</text>`;
+        return;
+      }
+
+      const width = 400;
+      const height = 200;
+      const pad = 18;
+      const maxX = Math.max(points.length - 1, 1);
+      const coords = points.map((point, idx) => {
+        const x = pad + ((width - pad * 2) * idx / maxX);
+        const y = pad + ((height - pad * 2) * (100 - point.remainingPercent) / 100);
+        return [x, y];
+      });
+      const polyline = coords.map(pair => pair.join(',')).join(' ');
+      const last = points[points.length - 1];
+
+      svg.innerHTML = `
+        <rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>
+        <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" stroke="#d6cdc1" />
+        <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" stroke="#d6cdc1" />
+        <polyline fill="none" stroke="${color}" stroke-width="3" points="${polyline}" />
+        <circle cx="${coords[coords.length - 1][0]}" cy="${coords[coords.length - 1][1]}" r="4" fill="${color}" />
+        <text x="${pad}" y="${pad + 2}" fill="#6f665d" font-size="12">100%</text>
+        <text x="${pad}" y="${height - pad - 4}" fill="#6f665d" font-size="12">0%</text>
+        <text x="${width - 90}" y="${pad + 2}" fill="${color}" font-size="12">${fmtPct(last.remainingPercent)} now</text>
+      `;
+    }
+
+    function escapeHTML(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    async function refresh() {
+      const data = await fetchJSON('/api/accounts');
+      state.accounts = data.accounts || [];
+      renderSummary(state.accounts);
+      renderTable(state.accounts);
+      if (!state.selected && state.accounts.length > 0) {
+        await selectAccount(state.accounts[0]);
+      } else if (state.selected) {
+        const latest = state.accounts.find(item => item.id === state.selected.id);
+        if (latest) await selectAccount(latest);
+      }
+    }
+
+    refresh().catch(err => {
+      document.getElementById('accounts-body').innerHTML = '<tr><td colspan="7" class="empty">' + escapeHTML(err.message) + '</td></tr>';
+    });
+    setInterval(() => refresh().catch(() => {}), 30000);
+  </script>
+</body>
+</html>
