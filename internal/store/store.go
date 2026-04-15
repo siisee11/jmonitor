@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dev/jmonitor/internal/codexapi"
-	"github.com/dev/jmonitor/internal/codexauth"
+	"github.com/dev/jmonitor/internal/account"
+	"github.com/dev/jmonitor/internal/quota"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -106,7 +106,7 @@ func HashToken(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func (s *Store) UpsertAccount(ctx context.Context, snapshot codexauth.AccountSnapshot) (int64, error) {
+func (s *Store) UpsertAccount(ctx context.Context, snapshot account.Snapshot) (int64, error) {
 	var lastRefresh *time.Time
 	if snapshot.LastRefresh != nil {
 		lastRefresh = snapshot.LastRefresh
@@ -135,7 +135,7 @@ returning id
 	return id, nil
 }
 
-func (s *Store) RecordPollSuccess(ctx context.Context, accountID int64, usage codexapi.NormalizedUsage, capturedAt time.Time) error {
+func (s *Store) RecordPollSuccess(ctx context.Context, accountID int64, usage quota.NormalizedUsage, capturedAt time.Time) error {
 	rawJSON := json.RawMessage(usage.RawJSON)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

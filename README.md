@@ -1,11 +1,12 @@
 # jmonitor
 
-V1 Codex usage monitor.
+V1 quota usage monitor for Codex and Claude Code.
 
 Features:
 
 - scans `CODEX_HOME/accounts/*.auth.json`
-- polls Codex usage every 5 minutes
+- scans `~/.claude/.credentials.json`
+- polls Codex and Claude usage every 5 minutes
 - stores 5-hour and weekly remaining percentages in PostgreSQL
 - serves a local dashboard and JSON API
 
@@ -22,6 +23,8 @@ Environment:
 - `CODEX_HOME` (optional, defaults to `~/.codex`)
 - `HTTP_ADDR` (default `:8080`)
 - `POLL_INTERVAL` (default `5m`)
+- `CLAUDE_HOME_HOST` (Compose only, defaults to `~/.claude`)
+- `CLAUDE_CREDENTIALS_JSON` (optional, lets Compose inject Claude credentials directly from the host)
 - `WEB_PORT` (default `4748`)
 - `APP_HOSTNAME` (for example `monitor.namjaeyoun.com`)
 - `CLOUDFLARE_TUNNEL_TOKEN` (required only when starting the tunnel profile)
@@ -42,8 +45,12 @@ docker compose up --build
 Notes:
 
 - `server` reads Codex account snapshots from `/codex/accounts/*.auth.json`.
+- `server` reads Claude Code credentials from `/root/.claude/.credentials.json` when available.
+- `server` also reads `CLAUDE_CREDENTIALS_JSON` when you inject Claude credentials through the environment.
 - In Compose, that path is backed by `${CODEX_HOME_HOST:-$HOME/.codex}` mounted read-only from the host.
-- `.env` is optional. You only need `CODEX_HOME_HOST` when your Codex home is not `~/.codex`.
+- In Compose, Claude credentials are backed by `${CLAUDE_HOME_HOST:-$HOME/.claude}` mounted read-only from the host.
+- `make publish` auto-loads Claude credentials from the macOS Keychain into `CLAUDE_CREDENTIALS_JSON` when `~/.claude/.credentials.json` does not exist.
+- `.env` is optional. You only need `CODEX_HOME_HOST` or `CLAUDE_HOME_HOST` when your local paths differ from `~/.codex` and `~/.claude`.
 - Open `http://localhost:4748` after the stack is healthy.
 
 Cloudflare Tunnel deploy:

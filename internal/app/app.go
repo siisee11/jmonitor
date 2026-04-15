@@ -13,6 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dev/jmonitor/internal/account"
+	"github.com/dev/jmonitor/internal/claudeapi"
+	"github.com/dev/jmonitor/internal/claudeauth"
 	"github.com/dev/jmonitor/internal/codexapi"
 	"github.com/dev/jmonitor/internal/codexauth"
 	"github.com/dev/jmonitor/internal/config"
@@ -23,8 +26,15 @@ type App struct {
 	cfg        config.Config
 	store      *store.Store
 	codexAPI   *codexapi.Client
+	claudeAPI  *claudeapi.Client
+	claudeAcct *claudeAccountState
 	httpServer *http.Server
 	dashboard  *template.Template
+}
+
+type claudeAccountState struct {
+	snapshot *account.Snapshot
+	resumeAt time.Time
 }
 
 //go:embed templates/*.html
@@ -57,10 +67,12 @@ func New(cfg config.Config) (*App, error) {
 	}
 
 	app := &App{
-		cfg:       cfg,
-		store:     st,
-		codexAPI:  codexapi.New(),
-		dashboard: tmpl,
+		cfg:        cfg,
+		store:      st,
+		codexAPI:   codexapi.New(),
+		claudeAPI:  claudeapi.New(),
+		claudeAcct: &claudeAccountState{},
+		dashboard:  tmpl,
 	}
 	app.httpServer = &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -91,30 +103,99 @@ func (a *App) RunPoller(ctx context.Context) {
 }
 
 func (a *App) pollOnce(ctx context.Context) {
-	snapshots, err := codexauth.DiscoverAccountSnapshots(a.cfg.CodexHome)
+	if snapshots, err := codexauth.DiscoverAccountSnapshots(a.cfg.CodexHome); err == nil {
+		for _, accountSnapshot := range snapshots {
+			capturedAt := time.Now().UTC()
+			accountID, err := a.store.UpsertAccount(ctx, accountSnapshot)
+			if err != nil {
+				continue
+			}
+
+			accountCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			usage, err := a.codexAPI.FetchUsage(accountCtx, accountSnapshot.AccessToken, accountSnapshot.ChatGPTAccountID)
+			cancel()
+			if err != nil {
+				_ = a.store.RecordPollFailure(ctx, accountID, capturedAt, err)
+				continue
+			}
+			if err := a.store.RecordPollSuccess(ctx, accountID, usage, capturedAt); err != nil {
+				_ = a.store.RecordPollFailure(ctx, accountID, capturedAt, err)
+			}
+		}
+	}
+
+	claudeSnapshot, err := claudeauth.DiscoverAccountSnapshot()
+	if err != nil || claudeSnapshot == nil {
+		return
+	}
+	if a.claudeAcct.snapshot == nil {
+		a.claudeAcct.snapshot = claudeSnapshot
+	} else if claudeSnapshot.AccessToken != a.claudeAcct.snapshot.AccessToken || claudeSnapshot.RefreshToken != a.claudeAcct.snapshot.RefreshToken {
+		a.claudeAcct.snapshot = claudeSnapshot
+		a.claudeAcct.resumeAt = time.Time{}
+	}
+	if !a.claudeAcct.resumeAt.IsZero() && time.Now().Before(a.claudeAcct.resumeAt) {
+		return
+	}
+
+	capturedAt := time.Now().UTC()
+	accountID, err := a.store.UpsertAccount(ctx, *a.claudeAcct.snapshot)
 	if err != nil {
 		return
 	}
 
-	for _, accountSnapshot := range snapshots {
-		capturedAt := time.Now().UTC()
-		accountID, err := a.store.UpsertAccount(ctx, accountSnapshot)
-		if err != nil {
-			continue
-		}
-
-		accountCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		usage, err := a.codexAPI.FetchUsage(accountCtx, accountSnapshot.AccessToken, accountSnapshot.ChatGPTAccountID)
-		cancel()
-		if err != nil {
-			_ = a.store.RecordPollFailure(ctx, accountID, capturedAt, err)
-			continue
-		}
-		if err := a.store.RecordPollSuccess(ctx, accountID, usage, capturedAt); err != nil {
-			_ = a.store.RecordPollFailure(ctx, accountID, capturedAt, err)
-			continue
+	accountCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	usage, err := a.claudeAPI.FetchUsage(accountCtx, a.claudeAcct.snapshot.AccessToken, a.claudeAcct.snapshot.Plan)
+	cancel()
+	if err != nil {
+		if refreshed := a.retryClaudeRateLimit(ctx); refreshed {
+			accountCtx, cancel = context.WithTimeout(ctx, 10*time.Second)
+			usage, err = a.claudeAPI.FetchUsage(accountCtx, a.claudeAcct.snapshot.AccessToken, a.claudeAcct.snapshot.Plan)
+			cancel()
 		}
 	}
+	if err != nil {
+		var rlErr *claudeapi.RateLimitError
+		if errors.As(err, &rlErr) && rlErr.RetryAfter > 0 {
+			a.claudeAcct.resumeAt = time.Now().Add(rlErr.RetryAfter)
+		}
+		_ = a.store.RecordPollFailure(ctx, accountID, capturedAt, formatClaudePollError(err))
+		return
+	}
+	a.claudeAcct.resumeAt = time.Time{}
+	if err := a.store.RecordPollSuccess(ctx, accountID, usage, capturedAt); err != nil {
+		_ = a.store.RecordPollFailure(ctx, accountID, capturedAt, err)
+	}
+}
+
+func (a *App) retryClaudeRateLimit(ctx context.Context) bool {
+	if a.claudeAcct == nil || a.claudeAcct.snapshot == nil || a.claudeAcct.snapshot.RefreshToken == "" {
+		return false
+	}
+
+	refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	tokenResp, err := claudeapi.RefreshToken(refreshCtx, a.claudeAcct.snapshot.RefreshToken)
+	if err != nil {
+		var rlErr *claudeapi.RateLimitError
+		if errors.As(err, &rlErr) && rlErr.RetryAfter > 0 {
+			a.claudeAcct.resumeAt = time.Now().Add(rlErr.RetryAfter)
+		}
+		return false
+	}
+
+	a.claudeAcct.snapshot.AccessToken = tokenResp.AccessToken
+	a.claudeAcct.snapshot.RefreshToken = tokenResp.RefreshToken
+	return true
+}
+
+func formatClaudePollError(err error) error {
+	var rlErr *claudeapi.RateLimitError
+	if errors.As(err, &rlErr) && rlErr.RetryAfter > 0 {
+		return fmt.Errorf("claudeapi: rate limited, retry after %s", rlErr.RetryAfter.Round(time.Minute))
+	}
+	return err
 }
 
 func (a *App) RunHTTP(ctx context.Context) error {
@@ -156,10 +237,10 @@ func (a *App) handleDashboard(w http.ResponseWriter, r *http.Request) {
 
 	data := struct {
 		PollInterval string
-		CodexHome    string
+		SourcePaths  string
 	}{
 		PollInterval: a.cfg.PollInterval.String(),
-		CodexHome:    a.cfg.CodexHome,
+		SourcePaths:  fmt.Sprintf("%s/accounts + %s", a.cfg.CodexHome, claudeauth.DefaultCredentialsPath()),
 	}
 	if err := a.dashboard.Execute(w, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

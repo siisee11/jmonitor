@@ -418,12 +418,12 @@
   <div class="shell">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark">jmonitor / codex quota monitor</div>
+        <div class="brand-mark">jmonitor / quota monitor</div>
         <div class="brand-copy">A compact live board for the only things that matter operationally: how much quota is left per account and when each window resets.</div>
       </div>
       <div class="topbar-actions">
         <div class="meta-chip">Poll {{ .PollInterval }}</div>
-        <div class="meta-chip">{{ .CodexHome }}/accounts</div>
+        <div class="meta-chip">{{ .SourcePaths }}</div>
         <div class="meta-chip" id="last-refresh-chip">Last refresh --</div>
       </div>
     </header>
@@ -455,7 +455,7 @@
         <div class="chart-head">
           <div>
             <h3 class="chart-title" id="chart-account-title">Select an account</h3>
-            <div class="chart-sub" id="chart-account-sub">Click an account card to load recent five-hour and weekly history.</div>
+            <div class="chart-sub" id="chart-account-sub">Click an account row to load recent five-hour and weekly history.</div>
           </div>
           <div class="meta-chip" id="chart-account-status">Waiting</div>
         </div>
@@ -586,7 +586,7 @@
     function renderAccountsGrid(accounts) {
       const grid = document.getElementById('accounts-grid');
       if (accounts.length === 0) {
-        grid.innerHTML = '<div class="empty">No Codex account snapshots found under CODEX_HOME/accounts.</div>';
+        grid.innerHTML = '<div class="empty">No supported account snapshots found. jmonitor reads Codex from CODEX_HOME/accounts and Claude from ~/.claude/.credentials.json.</div>';
         return;
       }
 
@@ -599,7 +599,7 @@
                 <h3 class="account-name">${escapeHTML(accountLabel(account))}</h3>
                 <div class="account-meta">
                   <div class="account-plan">${escapeHTML(account.plan || "--")}</div>
-                  <div class="account-id">${escapeHTML(account.chatgptAccountId || "--")}</div>
+                  <div class="account-id">${escapeHTML(account.chatgptAccountId || account.accountKey || "--")}</div>
                 </div>
               </div>
             </div>

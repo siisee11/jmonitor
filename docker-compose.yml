@@ -21,10 +21,12 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-jmonitor}:${POSTGRES_PASSWORD:-jmonitor}@postgresdb:5432/${POSTGRES_DB:-jmonitor}?sslmode=disable
       CODEX_HOME: /codex
+      CLAUDE_CREDENTIALS_JSON: ${CLAUDE_CREDENTIALS_JSON:-}
       HTTP_ADDR: :8080
       POLL_INTERVAL: ${POLL_INTERVAL:-5m}
     volumes:
       - ${CODEX_HOME_HOST:-${HOME}/.codex}:/codex:ro
+      - ${CLAUDE_HOME_HOST:-${HOME}/.claude}:/root/.claude:ro
     depends_on:
       postgresdb:
         condition: service_healthy

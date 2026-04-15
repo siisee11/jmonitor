@@ -8,20 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-)
 
-type AccountSnapshot struct {
-	AccountKey       string
-	ChatGPTAccountID string
-	ChatGPTUserID    string
-	Email            string
-	Plan             string
-	AccessToken      string
-	RefreshToken     string
-	IDToken          string
-	LastRefresh      *time.Time
-	SourcePath       string
-}
+	"github.com/dev/jmonitor/internal/account"
+)
 
 type authFile struct {
 	OpenAIAPIKey string `json:"OPENAI_API_KEY"`
@@ -44,14 +33,14 @@ type jwtClaims struct {
 	} `json:"https://api.openai.com/auth"`
 }
 
-func DiscoverAccountSnapshots(codexHome string) ([]AccountSnapshot, error) {
+func DiscoverAccountSnapshots(codexHome string) ([]account.Snapshot, error) {
 	accountsDir := filepath.Join(codexHome, "accounts")
 	entries, err := os.ReadDir(accountsDir)
 	if err != nil {
 		return nil, fmt.Errorf("read accounts dir: %w", err)
 	}
 
-	snapshots := make([]AccountSnapshot, 0, len(entries))
+	snapshots := make([]account.Snapshot, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".auth.json") {
 			continue
@@ -66,24 +55,24 @@ func DiscoverAccountSnapshots(codexHome string) ([]AccountSnapshot, error) {
 	return snapshots, nil
 }
 
-func ParseAccountSnapshot(path string) (AccountSnapshot, error) {
+func ParseAccountSnapshot(path string) (account.Snapshot, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return AccountSnapshot{}, fmt.Errorf("read auth file: %w", err)
+		return account.Snapshot{}, fmt.Errorf("read auth file: %w", err)
 	}
 
 	var auth authFile
 	if err := json.Unmarshal(data, &auth); err != nil {
-		return AccountSnapshot{}, fmt.Errorf("parse auth file: %w", err)
+		return account.Snapshot{}, fmt.Errorf("parse auth file: %w", err)
 	}
 
 	if auth.Tokens.AccessToken == "" || auth.Tokens.IDToken == "" || auth.Tokens.AccountID == "" {
-		return AccountSnapshot{}, fmt.Errorf("missing required token fields")
+		return account.Snapshot{}, fmt.Errorf("missing required token fields")
 	}
 
 	claims, err := parseJWTClaims(auth.Tokens.IDToken)
 	if err != nil {
-		return AccountSnapshot{}, fmt.Errorf("parse id_token: %w", err)
+		return account.Snapshot{}, fmt.Errorf("parse id_token: %w", err)
 	}
 
 	userID := claims.Auth.ChatGPTUserID
@@ -91,13 +80,13 @@ func ParseAccountSnapshot(path string) (AccountSnapshot, error) {
 		userID = claims.Auth.UserID
 	}
 	if userID == "" {
-		return AccountSnapshot{}, fmt.Errorf("missing chatgpt_user_id")
+		return account.Snapshot{}, fmt.Errorf("missing chatgpt_user_id")
 	}
 	if claims.Auth.ChatGPTAccountID == "" {
-		return AccountSnapshot{}, fmt.Errorf("missing jwt account id")
+		return account.Snapshot{}, fmt.Errorf("missing jwt account id")
 	}
 	if claims.Auth.ChatGPTAccountID != auth.Tokens.AccountID {
-		return AccountSnapshot{}, fmt.Errorf("account id mismatch")
+		return account.Snapshot{}, fmt.Errorf("account id mismatch")
 	}
 
 	var lastRefresh *time.Time
@@ -108,7 +97,7 @@ func ParseAccountSnapshot(path string) (AccountSnapshot, error) {
 	}
 
 	email := strings.ToLower(strings.TrimSpace(claims.Email))
-	return AccountSnapshot{
+	return account.Snapshot{
 		AccountKey:       userID + "::" + auth.Tokens.AccountID,
 		ChatGPTAccountID: auth.Tokens.AccountID,
 		ChatGPTUserID:    userID,

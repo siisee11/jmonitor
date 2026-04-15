@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/dev/jmonitor/internal/quota"
 )
 
 const defaultBaseURL = "https://chatgpt.com/backend-api/wham/usage"
@@ -38,40 +40,24 @@ type credits struct {
 	Balance json.Number `json:"balance,omitempty"`
 }
 
-type SnapshotWindow struct {
-	Slot             string
-	Name             string
-	UsedPercent      float64
-	RemainingPercent float64
-	WindowMinutes    int
-	ResetsAt         *time.Time
-}
-
-type NormalizedUsage struct {
-	PlanType       string
-	CreditsBalance *float64
-	Windows        []SnapshotWindow
-	RawJSON        []byte
-}
-
 func New() *Client {
 	return &Client{
 		http: &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
-func (c *Client) FetchUsage(ctx context.Context, accessToken, accountID string) (NormalizedUsage, error) {
+func (c *Client) FetchUsage(ctx context.Context, accessToken, accountID string) (quota.NormalizedUsage, error) {
 	body, err := c.fetch(ctx, defaultBaseURL, accessToken, accountID)
 	if err != nil {
-		return NormalizedUsage{}, err
+		return quota.NormalizedUsage{}, err
 	}
 
 	var resp UsageResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return NormalizedUsage{}, fmt.Errorf("decode usage response: %w", err)
+		return quota.NormalizedUsage{}, fmt.Errorf("decode usage response: %w", err)
 	}
 
-	normalized := NormalizedUsage{
+	normalized := quota.NormalizedUsage{
 		PlanType: resp.PlanType,
 		RawJSON:  body,
 	}
@@ -158,7 +144,7 @@ func fallbackURL(raw string) (string, bool) {
 	return u.String(), true
 }
 
-func normalizeWindow(planType, slot string, w *window, hasSecondary bool) SnapshotWindow {
+func normalizeWindow(planType, slot string, w *window, hasSecondary bool) quota.SnapshotWindow {
 	name := "unknown"
 	windowMinutes := int(w.LimitWindowSeconds / 60)
 	if hasSecondary && slot == "primary" {
@@ -185,7 +171,7 @@ func normalizeWindow(planType, slot string, w *window, hasSecondary bool) Snapsh
 		resetsAt = &ts
 	}
 
-	return SnapshotWindow{
+	return quota.SnapshotWindow{
 		Slot:             slot,
 		Name:             name,
 		UsedPercent:      w.UsedPercent,
