@@ -140,15 +140,10 @@
       font-size: 16px;
     }
 
-    .summary-grid,
     .accounts-grid,
     .chart-grid {
       display: grid;
       gap: 16px;
-    }
-
-    .summary-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
     .accounts-grid {
@@ -159,7 +154,6 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .summary-card,
     .account-card,
     .chart-wrap,
     .panel,
@@ -169,17 +163,9 @@
       box-shadow: none;
     }
 
-    .summary-card,
     .panel,
     .chart-wrap {
       padding: 20px;
-    }
-
-    .summary-card {
-      min-height: 128px;
-      display: grid;
-      gap: 12px;
-      align-content: start;
     }
 
     .label,
@@ -200,16 +186,10 @@
       text-transform: uppercase;
     }
 
-    .value,
     .quota-value,
     .account-plan {
       font-family: var(--font-display);
       color: var(--fg);
-    }
-
-    .value {
-      font-size: clamp(28px, 4vw, 40px);
-      line-height: 1;
     }
 
     .accounts-grid {
@@ -380,7 +360,6 @@
     }
 
     @media (max-width: 1080px) {
-      .summary-grid,
       .accounts-grid,
       .chart-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -403,7 +382,6 @@
         align-items: flex-start;
       }
 
-      .summary-grid,
       .accounts-grid,
       .chart-grid,
       .quota-grid {
@@ -422,47 +400,15 @@
       <div class="topbar-actions">
         <div class="meta-chip">Poll {{ .PollInterval }}</div>
         <div class="meta-chip">{{ .CodexHome }}/accounts</div>
+        <div class="meta-chip" id="last-refresh-chip">Last refresh --</div>
       </div>
     </header>
 
     <section class="section">
       <div class="section-head">
         <div>
-          <div class="section-kicker">System Snapshot</div>
-          <h1 class="section-title">Account Limits</h1>
-        </div>
-        <div class="section-copy">Use the account cards to scan remaining 5-hour and weekly budget, sort out which account is closest to exhaustion, and open history only when you need trend detail.</div>
-      </div>
-
-      <div class="summary-grid" id="summary-grid">
-        <div class="summary-card">
-          <div class="label">Accounts</div>
-          <div class="value" id="count-accounts">-</div>
-          <div class="label" id="summary-accounts-copy">Tracked snapshots</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">Lowest 5H</div>
-          <div class="value" id="lowest-five-hour">-</div>
-          <div class="label" id="lowest-five-hour-name">-</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">Lowest Weekly</div>
-          <div class="value" id="lowest-weekly">-</div>
-          <div class="label" id="lowest-weekly-name">-</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">Last Refresh</div>
-          <div class="value" id="last-refresh">-</div>
-          <div class="label">Most recent successful poll</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-head">
-        <div>
           <div class="section-kicker">Live Board</div>
-          <h2 class="section-title">Per-Account Limits</h2>
+          <h1 class="section-title">Per-Account Limits</h1>
         </div>
         <div class="section-copy">Click any card to lock the detailed history view below. Each card shows both quota windows, remaining percentage, and reset countdown.</div>
       </div>
@@ -534,6 +480,14 @@
       return new Date(value).toLocaleTimeString();
     }
 
+    function fmtAxisTime(value) {
+      if (!value) return "--";
+      return new Date(value).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
     function accountLabel(account) {
       return account.email || account.accountKey;
     }
@@ -581,25 +535,11 @@
         .replaceAll("'", '&#39;');
     }
 
-    function renderSummary(accounts) {
-      document.getElementById('count-accounts').textContent = String(accounts.length);
-
+    function renderHeader(accounts) {
       const lastSuccess = accounts
         .map(a => a.lastSuccessAt ? new Date(a.lastSuccessAt).getTime() : 0)
         .reduce((a, b) => Math.max(a, b), 0);
-      document.getElementById('last-refresh').textContent = lastSuccess ? fmtTime(lastSuccess) : "--";
-
-      const lowestFive = accounts
-        .filter(a => a.fiveHourRemaining != null)
-        .sort((a, b) => a.fiveHourRemaining - b.fiveHourRemaining)[0];
-      document.getElementById('lowest-five-hour').textContent = lowestFive ? fmtPct(lowestFive.fiveHourRemaining) : "--";
-      document.getElementById('lowest-five-hour-name').textContent = lowestFive ? accountLabel(lowestFive) : "--";
-
-      const lowestWeekly = accounts
-        .filter(a => a.weeklyRemaining != null)
-        .sort((a, b) => a.weeklyRemaining - b.weeklyRemaining)[0];
-      document.getElementById('lowest-weekly').textContent = lowestWeekly ? fmtPct(lowestWeekly.weeklyRemaining) : "--";
-      document.getElementById('lowest-weekly-name').textContent = lowestWeekly ? accountLabel(lowestWeekly) : "--";
+      document.getElementById('last-refresh-chip').textContent = `Last refresh ${lastSuccess ? fmtTime(lastSuccess) : "--"}`;
     }
 
     function renderQuotaCard(label, remaining, resetsAt) {
@@ -718,6 +658,12 @@
       const polyline = coords.map(pair => pair.join(',')).join(' ');
       const last = points[points.length - 1];
       const lastCoord = coords[coords.length - 1];
+      const midIndex = Math.floor((points.length - 1) / 2);
+      const axisTicks = [
+        { x: padX, label: fmtAxisTime(points[0].capturedAt), anchor: 'start' },
+        { x: coords[midIndex][0], label: fmtAxisTime(points[midIndex].capturedAt), anchor: 'middle' },
+        { x: width - padX, label: fmtAxisTime(last.capturedAt), anchor: 'end' }
+      ];
       valueNode.textContent = `${fmtPct(last.remainingPercent)} now`;
 
       svg.innerHTML = `
@@ -731,13 +677,17 @@
         <text x="${padX}" y="${padY + 2}" fill="rgba(255,255,255,0.5)" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, monospace">100%</text>
         <text x="${padX}" y="${height / 2 + 4}" fill="rgba(255,255,255,0.3)" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, monospace">50%</text>
         <text x="${padX}" y="${height - padY - 4}" fill="rgba(255,255,255,0.5)" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, monospace">0%</text>
+        ${axisTicks.map(tick => `
+          <line x1="${tick.x}" y1="${height - padY}" x2="${tick.x}" y2="${height - padY + 6}" stroke="rgba(255,255,255,0.22)" />
+          <text x="${tick.x}" y="${height - 2}" text-anchor="${tick.anchor}" fill="rgba(255,255,255,0.5)" font-size="11" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, monospace">${tick.label}</text>
+        `).join('')}
       `;
     }
 
     async function refresh() {
       const data = await fetchJSON('/api/accounts');
       state.accounts = data.accounts || [];
-      renderSummary(state.accounts);
+      renderHeader(state.accounts);
       renderAccountsGrid(state.accounts);
 
       if (!state.selected && state.accounts.length > 0) {
