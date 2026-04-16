@@ -2,6 +2,8 @@
 
 V1 quota usage monitor for Codex and Claude Code.
 
+![jmonitor dashboard](docs/dashboard.png)
+
 Features:
 
 - scans `CODEX_HOME/accounts/*.auth.json`
