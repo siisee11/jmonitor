@@ -237,10 +237,8 @@ func (a *App) handleDashboard(w http.ResponseWriter, r *http.Request) {
 
 	data := struct {
 		PollInterval string
-		SourcePaths  string
 	}{
 		PollInterval: a.cfg.PollInterval.String(),
-		SourcePaths:  fmt.Sprintf("%s/accounts + %s", a.cfg.CodexHome, claudeauth.DefaultCredentialsPath()),
 	}
 	if err := a.dashboard.Execute(w, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

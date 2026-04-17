@@ -98,6 +98,8 @@
       gap: 12px;
       flex-wrap: wrap;
       justify-content: flex-end;
+      min-width: 0;
+      max-width: 100%;
     }
 
     .meta-chip,
@@ -148,6 +150,21 @@
 
     .chart-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .history-dialog {
+      width: min(960px, calc(100% - 32px));
+      max-height: calc(100dvh - 32px);
+      margin: auto;
+      padding: 0;
+      border: 1px solid var(--border-strong);
+      background: #24272d;
+      color: var(--fg);
+      overflow: auto;
+    }
+
+    .history-dialog::backdrop {
+      background: rgba(0, 0, 0, 0.64);
     }
 
     .account-row,
@@ -323,6 +340,35 @@
     .chart-wrap {
       display: grid;
       gap: 20px;
+      min-width: 0;
+    }
+
+    .history-dialog .chart-wrap {
+      border: 0;
+      background: transparent;
+    }
+
+    .dialog-actions {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .dialog-close {
+      display: inline-grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      flex: 0 0 auto;
+      border: 1px solid var(--border-strong);
+      background: transparent;
+      color: var(--fg);
+      font: 22px/1 var(--font-display);
+      cursor: pointer;
+    }
+
+    .dialog-close:hover {
+      background: var(--surface-hover);
     }
 
     .chart-title {
@@ -330,17 +376,20 @@
       font-size: 28px;
       font-weight: 400;
       line-height: 1.2;
+      overflow-wrap: anywhere;
     }
 
     .chart-sub {
       margin-top: 6px;
       color: var(--text-secondary);
       font-size: 15px;
+      overflow-wrap: anywhere;
     }
 
     .panel {
       display: grid;
       gap: 14px;
+      min-width: 0;
     }
 
     .panel-value {
@@ -398,8 +447,33 @@
         align-items: flex-start;
       }
 
+      .topbar-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .meta-chip {
+        max-width: 100%;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+
       .chart-grid {
         grid-template-columns: 1fr;
+      }
+
+      .history-dialog {
+        width: calc(100% - 24px);
+        max-height: calc(100dvh - 24px);
+      }
+
+      .history-dialog .chart-wrap {
+        padding: 16px;
+      }
+
+      .dialog-actions {
+        width: 100%;
+        justify-content: space-between;
       }
 
       .bar-top,
@@ -423,7 +497,6 @@
       </div>
       <div class="topbar-actions">
         <div class="meta-chip">Poll {{ .PollInterval }}</div>
-        <div class="meta-chip">{{ .SourcePaths }}</div>
         <div class="meta-chip" id="last-refresh-chip">Last refresh --</div>
       </div>
     </header>
@@ -434,7 +507,7 @@
           <div class="section-kicker">Live Board</div>
           <h1 class="section-title">Per-Account Limits</h1>
         </div>
-        <div class="section-copy">Each account is rendered as one row. Compare 5-hour and weekly remaining budget side by side, then click a row only when you need detailed history below.</div>
+        <div class="section-copy">Each account is rendered as one row. Compare 5-hour and weekly remaining budget side by side, then click a row to inspect detailed history in a dialog.</div>
       </div>
 
       <div class="accounts-list" id="accounts-grid">
@@ -442,22 +515,17 @@
       </div>
     </section>
 
-    <section class="section">
-      <div class="section-head">
-        <div>
-          <div class="section-kicker">Detail View</div>
-          <h2 class="section-title">Selected Account History</h2>
-        </div>
-        <div class="section-copy">History is secondary. Keep the board for scanning, then inspect the line charts when a specific account needs closer attention.</div>
-      </div>
-
+    <dialog class="history-dialog" id="history-dialog" aria-labelledby="chart-account-title">
       <div class="chart-wrap">
         <div class="chart-head">
           <div>
             <h3 class="chart-title" id="chart-account-title">Select an account</h3>
             <div class="chart-sub" id="chart-account-sub">Click an account row to load recent five-hour and weekly history.</div>
           </div>
-          <div class="meta-chip" id="chart-account-status">Waiting</div>
+          <div class="dialog-actions">
+            <div class="meta-chip" id="chart-account-status">Waiting</div>
+            <button class="dialog-close" id="history-dialog-close" type="button" title="Close history dialog" aria-label="Close history dialog">×</button>
+          </div>
         </div>
 
         <div class="chart-grid">
@@ -477,11 +545,11 @@
           </div>
         </div>
       </div>
-    </section>
+    </dialog>
   </div>
 
   <script>
-    const state = { accounts: [], selected: null };
+    const state = { accounts: [], selected: null, historyRequest: 0 };
 
     async function fetchJSON(url) {
       const res = await fetch(url);
@@ -619,15 +687,31 @@
       grid.querySelectorAll('[data-account-id]').forEach(card => {
         card.addEventListener('click', () => {
           const account = state.accounts.find(item => String(item.id) === card.dataset.accountId);
-          if (account) selectAccount(account);
+          if (account) openHistoryDialog(account);
         });
       });
     }
 
-    async function selectAccount(account) {
+    function resetCharts() {
+      document.getElementById('chart-five-hour-value').textContent = 'Loading';
+      document.getElementById('chart-weekly-value').textContent = 'Loading';
+      document.getElementById('chart-five-hour').innerHTML = '';
+      document.getElementById('chart-weekly').innerHTML = '';
+    }
+
+    async function openHistoryDialog(account) {
       state.selected = account;
       renderAccountsGrid(state.accounts);
+      resetCharts();
 
+      const dialog = document.getElementById('history-dialog');
+      if (!dialog.open) dialog.showModal();
+
+      await renderAccountHistory(account);
+    }
+
+    async function renderAccountHistory(account) {
+      const requestID = ++state.historyRequest;
       document.getElementById('chart-account-title').textContent = accountLabel(account);
       document.getElementById('chart-account-sub').textContent = `Plan ${account.plan || "--"} · 5H resets in ${fmtCountdown(account.fiveHourResetsAt)} · Weekly resets in ${fmtCountdown(account.weeklyResetsAt)}`;
       document.getElementById('chart-account-status').textContent = statusText(account);
@@ -636,6 +720,8 @@
         fetchJSON(`/api/accounts/${account.id}/history?window=five_hour&limit=288`),
         fetchJSON(`/api/accounts/${account.id}/history?window=weekly&limit=288`)
       ]);
+
+      if (requestID !== state.historyRequest) return;
 
       renderSeries(
         document.getElementById('chart-five-hour'),
@@ -704,15 +790,43 @@
       const data = await fetchJSON('/api/accounts');
       state.accounts = data.accounts || [];
       renderHeader(state.accounts);
+
+      if (state.selected) {
+        const latest = state.accounts.find(item => item.id === state.selected.id);
+        state.selected = latest || null;
+        if (!latest && document.getElementById('history-dialog').open) {
+          document.getElementById('history-dialog').close();
+        }
+      }
+
       renderAccountsGrid(state.accounts);
 
-      if (!state.selected && state.accounts.length > 0) {
-        await selectAccount(state.accounts[0]);
-      } else if (state.selected) {
-        const latest = state.accounts.find(item => item.id === state.selected.id);
-        if (latest) await selectAccount(latest);
+      if (state.selected && document.getElementById('history-dialog').open) {
+        await renderAccountHistory(state.selected);
       }
     }
+
+    const historyDialog = document.getElementById('history-dialog');
+    function clearHistorySelection() {
+      state.historyRequest++;
+      if (!state.selected) return;
+      state.selected = null;
+      renderAccountsGrid(state.accounts);
+    }
+
+    document.getElementById('history-dialog-close').addEventListener('click', () => {
+      clearHistorySelection();
+      historyDialog.close();
+    });
+    historyDialog.addEventListener('click', event => {
+      if (event.target === historyDialog) {
+        clearHistorySelection();
+        historyDialog.close();
+      }
+    });
+    historyDialog.addEventListener('close', () => {
+      clearHistorySelection();
+    });
 
     refresh().catch(err => {
       document.getElementById('accounts-grid').innerHTML = '<div class="empty">' + escapeHTML(err.message) + '</div>';
