@@ -30,6 +30,7 @@ type App struct {
 	claudeAcct *claudeAccountState
 	httpServer *http.Server
 	dashboard  *template.Template
+	logoSVG    []byte
 }
 
 type claudeAccountState struct {
@@ -39,6 +40,9 @@ type claudeAccountState struct {
 
 //go:embed templates/*.html
 var templateFS embed.FS
+
+//go:embed assets/logo.svg
+var assetFS embed.FS
 
 func New(cfg config.Config) (*App, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -66,6 +70,12 @@ func New(cfg config.Config) (*App, error) {
 		return nil, fmt.Errorf("parse dashboard template: %w", err)
 	}
 
+	logoSVG, err := assetFS.ReadFile("assets/logo.svg")
+	if err != nil {
+		st.Close()
+		return nil, fmt.Errorf("read logo asset: %w", err)
+	}
+
 	app := &App{
 		cfg:        cfg,
 		store:      st,
@@ -73,6 +83,7 @@ func New(cfg config.Config) (*App, error) {
 		claudeAPI:  claudeapi.New(),
 		claudeAcct: &claudeAccountState{},
 		dashboard:  tmpl,
+		logoSVG:    logoSVG,
 	}
 	app.httpServer = &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -223,10 +234,22 @@ func (a *App) RunHTTP(ctx context.Context) error {
 func (a *App) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", a.handleDashboard)
+	mux.HandleFunc("/favicon.svg", a.handleFavicon)
 	mux.HandleFunc("/api/accounts", a.handleAccounts)
 	mux.HandleFunc("/api/accounts/", a.handleAccountHistory)
 	mux.HandleFunc("/healthz", a.handleHealthz)
 	return mux
+}
+
+func (a *App) handleFavicon(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet || r.URL.Path != "/favicon.svg" {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	_, _ = w.Write(a.logoSVG)
 }
 
 func (a *App) handleDashboard(w http.ResponseWriter, r *http.Request) {
