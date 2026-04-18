@@ -139,6 +139,50 @@
       padding-top: 32px;
     }
 
+    .tab-shell {
+      padding-top: 32px;
+    }
+
+    .tab-bar {
+      display: inline-flex;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .tab-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 0 14px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-display);
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+    }
+
+    .tab-button:hover {
+      background: var(--surface-hover);
+      color: var(--fg);
+    }
+
+    .tab-button.active {
+      border-color: var(--border-strong);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--fg);
+    }
+
+    .tab-panel[hidden] {
+      display: none;
+    }
+
     .section-head {
       margin-bottom: 20px;
     }
@@ -595,33 +639,60 @@
       </div>
     </header>
 
-    <section class="section">
-      <div class="section-head">
-        <div>
-          <div class="section-kicker">Live Board</div>
-          <h1 class="section-title">Per-Account Limits</h1>
+    <div class="tab-shell">
+      <div class="tab-bar" role="tablist" aria-label="Dashboard sections">
+        <button
+          class="tab-button active"
+          id="tab-button-remaining"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="tab-panel-remaining"
+          data-tab-target="remaining"
+        >
+          Remaining Usage
+        </button>
+        <button
+          class="tab-button"
+          id="tab-button-daily"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="tab-panel-daily"
+          data-tab-target="daily"
+        >
+          Daily Usage
+        </button>
+      </div>
+
+      <section class="section tab-panel" id="tab-panel-remaining" role="tabpanel" aria-labelledby="tab-button-remaining">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Live Board</div>
+            <h1 class="section-title">Per-Account Limits</h1>
+          </div>
+          <div class="section-copy">Each account is rendered as one row. Compare 5-hour and weekly remaining budget side by side, then click a row to inspect detailed history in a dialog.</div>
         </div>
-        <div class="section-copy">Each account is rendered as one row. Compare 5-hour and weekly remaining budget side by side, then click a row to inspect detailed history in a dialog.</div>
-      </div>
 
-      <div class="accounts-list" id="accounts-grid">
-        <div class="empty">Loading accounts...</div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-head">
-        <div>
-          <div class="section-kicker">Daily Rollup</div>
-          <h2 class="section-title">Daily Usage And API Cost</h2>
+        <div class="accounts-list" id="accounts-grid">
+          <div class="empty">Loading accounts...</div>
         </div>
-        <div class="section-copy">Local transcript logs are rolled up by day for Codex and Claude. Cost is estimated from `ccusage`-style model pricing rules when the transcript itself does not already include a cost.</div>
-      </div>
+      </section>
 
-      <div id="daily-usage-grid" class="daily-usage-shell">
-        <div class="empty">Loading daily usage...</div>
-      </div>
-    </section>
+      <section class="section tab-panel" id="tab-panel-daily" role="tabpanel" aria-labelledby="tab-button-daily" hidden>
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Daily Rollup</div>
+            <h2 class="section-title">Daily Usage And API Cost</h2>
+          </div>
+          <div class="section-copy">Local transcript logs are rolled up by day for Codex and Claude. Cost is estimated from `ccusage`-style model pricing rules when the transcript itself does not already include a cost.</div>
+        </div>
+
+        <div id="daily-usage-grid" class="daily-usage-shell">
+          <div class="empty">Loading daily usage...</div>
+        </div>
+      </section>
+    </div>
 
     <dialog class="history-dialog" id="history-dialog" aria-labelledby="chart-account-title">
       <div class="chart-wrap">
@@ -657,7 +728,7 @@
   </div>
 
   <script>
-    const state = { accounts: [], dailyUsage: [], selected: null, historyRequest: 0 };
+    const state = { accounts: [], dailyUsage: [], selected: null, historyRequest: 0, activeTab: 'remaining' };
 
     async function fetchJSON(url) {
       const res = await fetch(url);
@@ -761,6 +832,20 @@
         .map(a => a.lastSuccessAt ? new Date(a.lastSuccessAt).getTime() : 0)
         .reduce((a, b) => Math.max(a, b), 0);
       document.getElementById('last-refresh-chip').textContent = `Last refresh ${lastSuccess ? fmtTime(lastSuccess) : "--"}`;
+    }
+
+    function setActiveTab(tab) {
+      state.activeTab = tab;
+
+      document.querySelectorAll('[data-tab-target]').forEach(button => {
+        const active = button.dataset.tabTarget === tab;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+
+      document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.hidden = panel.id !== `tab-panel-${tab}`;
+      });
     }
 
     function renderLimitBar(label, remaining, resetsAt) {
@@ -1007,6 +1092,11 @@
       clearHistorySelection();
       historyDialog.close();
     });
+    document.querySelectorAll('[data-tab-target]').forEach(button => {
+      button.addEventListener('click', () => {
+        setActiveTab(button.dataset.tabTarget);
+      });
+    });
     historyDialog.addEventListener('click', event => {
       if (event.target === historyDialog) {
         clearHistorySelection();
@@ -1017,6 +1107,7 @@
       clearHistorySelection();
     });
 
+    setActiveTab(state.activeTab);
     refresh().catch(err => {
       document.getElementById('accounts-grid').innerHTML = '<div class="empty">' + escapeHTML(err.message) + '</div>';
       document.getElementById('daily-usage-grid').innerHTML = '<div class="empty">' + escapeHTML(err.message) + '</div>';
