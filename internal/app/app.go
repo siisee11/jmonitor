@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"path"
 	"strconv"
@@ -19,6 +20,8 @@ import (
 	"github.com/dev/jmonitor/internal/codexapi"
 	"github.com/dev/jmonitor/internal/codexauth"
 	"github.com/dev/jmonitor/internal/config"
+	"github.com/dev/jmonitor/internal/dailyusage"
+	"github.com/dev/jmonitor/internal/pricing"
 	"github.com/dev/jmonitor/internal/store"
 )
 
@@ -31,6 +34,7 @@ type App struct {
 	httpServer *http.Server
 	dashboard  *template.Template
 	logoSVG    []byte
+	pricing    *pricing.Fetcher
 }
 
 type claudeAccountState struct {
@@ -84,6 +88,7 @@ func New(cfg config.Config) (*App, error) {
 		claudeAcct: &claudeAccountState{},
 		dashboard:  tmpl,
 		logoSVG:    logoSVG,
+		pricing:    pricing.New(),
 	}
 	app.httpServer = &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -114,6 +119,12 @@ func (a *App) RunPoller(ctx context.Context) {
 }
 
 func (a *App) pollOnce(ctx context.Context) {
+	defer func() {
+		if err := a.refreshDailyUsage(ctx); err != nil {
+			log.Printf("refresh daily usage: %v", err)
+		}
+	}()
+
 	if snapshots, err := codexauth.DiscoverAccountSnapshots(a.cfg.CodexHome); err == nil {
 		for _, accountSnapshot := range snapshots {
 			capturedAt := time.Now().UTC()
@@ -237,6 +248,7 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("/favicon.svg", a.handleFavicon)
 	mux.HandleFunc("/api/accounts", a.handleAccounts)
 	mux.HandleFunc("/api/accounts/", a.handleAccountHistory)
+	mux.HandleFunc("/api/daily-usage", a.handleDailyUsage)
 	mux.HandleFunc("/healthz", a.handleHealthz)
 	return mux
 }
@@ -284,6 +296,36 @@ func (a *App) handleAccounts(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (a *App) handleDailyUsage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	limit := 60
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed <= 0 {
+			http.Error(w, "invalid limit", http.StatusBadRequest)
+			return
+		}
+		if parsed > 365 {
+			parsed = 365
+		}
+		limit = parsed
+	}
+
+	rows, err := a.store.ListDailyUsage(r.Context(), limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"rows": rows,
+	})
+}
+
 func (a *App) handleAccountHistory(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -324,6 +366,30 @@ func (a *App) handleAccountHistory(w http.ResponseWriter, r *http.Request) {
 		"window":    windowName,
 		"points":    points,
 	})
+}
+
+func (a *App) refreshDailyUsage(ctx context.Context) error {
+	capturedAt := time.Now().UTC()
+	var rows []store.DailyUsageRow
+
+	codexRows, err := dailyusage.CollectCodex(ctx, a.cfg.CodexHome, a.pricing, capturedAt)
+	if err != nil {
+		log.Printf("collect codex daily usage: %v", err)
+	} else {
+		rows = append(rows, codexRows...)
+	}
+
+	claudeRows, err := dailyusage.CollectClaude(ctx, a.pricing, capturedAt)
+	if err != nil {
+		log.Printf("collect claude daily usage: %v", err)
+	} else {
+		rows = append(rows, claudeRows...)
+	}
+
+	if len(rows) == 0 {
+		return nil
+	}
+	return a.store.UpsertDailyUsageRows(ctx, rows)
 }
 
 func (a *App) handleHealthz(w http.ResponseWriter, r *http.Request) {

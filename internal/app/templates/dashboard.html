@@ -167,6 +167,67 @@
       gap: 16px;
     }
 
+    .daily-usage-shell {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      overflow-x: auto;
+    }
+
+    .daily-usage-table {
+      width: 100%;
+      min-width: 920px;
+      border-collapse: collapse;
+    }
+
+    .daily-usage-table th,
+    .daily-usage-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .daily-usage-table th {
+      color: var(--text-muted);
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .daily-usage-table td {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .daily-usage-table tbody tr:hover {
+      background: var(--surface-hover);
+    }
+
+    .daily-cell-strong,
+    .daily-cost {
+      color: var(--fg);
+      font-family: var(--font-display);
+      font-size: 13px;
+      letter-spacing: 0.6px;
+    }
+
+    .daily-provider {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 8px;
+      border: 1px solid var(--border-strong);
+      color: var(--fg);
+      font-family: var(--font-display);
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
     .chart-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -548,6 +609,20 @@
       </div>
     </section>
 
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Daily Rollup</div>
+          <h2 class="section-title">Daily Usage And API Cost</h2>
+        </div>
+        <div class="section-copy">Local transcript logs are rolled up by day for Codex and Claude. Cost is estimated from `ccusage`-style model pricing rules when the transcript itself does not already include a cost.</div>
+      </div>
+
+      <div id="daily-usage-grid" class="daily-usage-shell">
+        <div class="empty">Loading daily usage...</div>
+      </div>
+    </section>
+
     <dialog class="history-dialog" id="history-dialog" aria-labelledby="chart-account-title">
       <div class="chart-wrap">
         <div class="chart-head">
@@ -582,7 +657,7 @@
   </div>
 
   <script>
-    const state = { accounts: [], selected: null, historyRequest: 0 };
+    const state = { accounts: [], dailyUsage: [], selected: null, historyRequest: 0 };
 
     async function fetchJSON(url) {
       const res = await fetch(url);
@@ -600,6 +675,21 @@
       return new Date(value).toLocaleString();
     }
 
+    function fmtNumber(value) {
+      if (value == null) return "--";
+      return Number(value).toLocaleString();
+    }
+
+    function fmtCurrency(value) {
+      if (value == null) return "--";
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: value >= 1 ? 2 : 4,
+        maximumFractionDigits: value >= 1 ? 2 : 4
+      }).format(value);
+    }
+
     function fmtTime(value) {
       if (!value) return "--";
       return new Date(value).toLocaleTimeString();
@@ -615,6 +705,12 @@
 
     function accountLabel(account) {
       return account.email || account.accountKey;
+    }
+
+    function providerLabel(provider) {
+      if (provider === 'codex') return 'Codex';
+      if (provider === 'claude') return 'Claude';
+      return provider || '--';
     }
 
     function statusText(account) {
@@ -725,6 +821,53 @@
       });
     }
 
+    function renderDailyUsage(rows, errorMessage) {
+      const grid = document.getElementById('daily-usage-grid');
+
+      if (errorMessage) {
+        grid.innerHTML = '<div class="empty">' + escapeHTML(errorMessage) + '</div>';
+        return;
+      }
+
+      if (!rows || rows.length === 0) {
+        grid.innerHTML = '<div class="empty">No local usage transcripts found yet. Codex scans `CODEX_HOME/sessions`; Claude scans transcript roots under `~/.config/claude` and `~/.claude`.</div>';
+        return;
+      }
+
+      grid.innerHTML = `
+        <table class="daily-usage-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Provider</th>
+              <th>Requests</th>
+              <th>Input</th>
+              <th>Cache Write</th>
+              <th>Cache Read</th>
+              <th>Output</th>
+              <th>Total</th>
+              <th>Est. Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(row => `
+              <tr>
+                <td class="daily-cell-strong">${escapeHTML(row.usageDate)}</td>
+                <td><span class="daily-provider">${escapeHTML(providerLabel(row.provider))}</span></td>
+                <td>${escapeHTML(fmtNumber(row.requestCount))}</td>
+                <td>${escapeHTML(fmtNumber(row.inputTokens))}</td>
+                <td>${escapeHTML(fmtNumber(row.cacheCreationTokens))}</td>
+                <td>${escapeHTML(fmtNumber(row.cacheReadTokens))}</td>
+                <td>${escapeHTML(fmtNumber(row.outputTokens))}</td>
+                <td class="daily-cell-strong">${escapeHTML(fmtNumber(row.totalTokens))}</td>
+                <td class="daily-cost">${escapeHTML(fmtCurrency(row.estimatedCostUsd))}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
     function resetCharts() {
       document.getElementById('chart-five-hour-value').textContent = 'Loading';
       document.getElementById('chart-weekly-value').textContent = 'Loading';
@@ -820,8 +963,17 @@
     }
 
     async function refresh() {
-      const data = await fetchJSON('/api/accounts');
-      state.accounts = data.accounts || [];
+      const [accountsResult, dailyUsageResult] = await Promise.allSettled([
+        fetchJSON('/api/accounts'),
+        fetchJSON('/api/daily-usage?limit=60')
+      ]);
+
+      if (accountsResult.status !== 'fulfilled') {
+        throw accountsResult.reason;
+      }
+
+      state.accounts = accountsResult.value.accounts || [];
+      state.dailyUsage = dailyUsageResult.status === 'fulfilled' ? (dailyUsageResult.value.rows || []) : [];
       renderHeader(state.accounts);
 
       if (state.selected) {
@@ -833,6 +985,10 @@
       }
 
       renderAccountsGrid(state.accounts);
+      renderDailyUsage(
+        state.dailyUsage,
+        dailyUsageResult.status === 'rejected' ? dailyUsageResult.reason.message : ''
+      );
 
       if (state.selected && document.getElementById('history-dialog').open) {
         await renderAccountHistory(state.selected);
@@ -863,6 +1019,7 @@
 
     refresh().catch(err => {
       document.getElementById('accounts-grid').innerHTML = '<div class="empty">' + escapeHTML(err.message) + '</div>';
+      document.getElementById('daily-usage-grid').innerHTML = '<div class="empty">' + escapeHTML(err.message) + '</div>';
     });
     setInterval(() => refresh().catch(() => {}), 30000);
   </script>

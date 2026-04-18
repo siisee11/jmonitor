@@ -45,6 +45,19 @@ type HistoryPoint struct {
 	ResetsAt         *time.Time `json:"resetsAt,omitempty"`
 }
 
+type DailyUsageRow struct {
+	UsageDate        string    `json:"usageDate"`
+	Provider         string    `json:"provider"`
+	InputTokens      int64     `json:"inputTokens"`
+	CacheCreation    int64     `json:"cacheCreationTokens"`
+	CacheRead        int64     `json:"cacheReadTokens"`
+	OutputTokens     int64     `json:"outputTokens"`
+	TotalTokens      int64     `json:"totalTokens"`
+	RequestCount     int       `json:"requestCount"`
+	EstimatedCostUSD float64   `json:"estimatedCostUsd"`
+	CapturedAt       time.Time `json:"capturedAt"`
+}
+
 func Open(ctx context.Context, databaseURL string) (*Store, error) {
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
@@ -96,6 +109,26 @@ create table if not exists quota_snapshots (
 
 create index if not exists quota_snapshots_account_window_captured_idx
   on quota_snapshots(account_id, window_name, captured_at desc);
+
+create table if not exists daily_usage_snapshots (
+  id bigserial primary key,
+  usage_date date not null,
+  provider text not null,
+  input_tokens bigint not null default 0,
+  cache_creation_tokens bigint not null default 0,
+  cache_read_tokens bigint not null default 0,
+  output_tokens bigint not null default 0,
+  total_tokens bigint not null default 0,
+  request_count integer not null default 0,
+  estimated_cost_usd double precision not null default 0,
+  captured_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(usage_date, provider)
+);
+
+create index if not exists daily_usage_snapshots_usage_date_provider_idx
+  on daily_usage_snapshots(usage_date desc, provider asc);
 `
 	_, err := s.pool.Exec(ctx, ddl)
 	return err
@@ -291,4 +324,91 @@ limit $3
 		points[i], points[j] = points[j], points[i]
 	}
 	return points, nil
+}
+
+func (s *Store) UpsertDailyUsageRows(ctx context.Context, rows []DailyUsageRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin daily usage tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	for _, row := range rows {
+		_, err := tx.Exec(ctx, `
+insert into daily_usage_snapshots (
+  usage_date, provider, input_tokens, cache_creation_tokens, cache_read_tokens,
+  output_tokens, total_tokens, request_count, estimated_cost_usd, captured_at, updated_at
+) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())
+on conflict (usage_date, provider) do update set
+  input_tokens = excluded.input_tokens,
+  cache_creation_tokens = excluded.cache_creation_tokens,
+  cache_read_tokens = excluded.cache_read_tokens,
+  output_tokens = excluded.output_tokens,
+  total_tokens = excluded.total_tokens,
+  request_count = excluded.request_count,
+  estimated_cost_usd = excluded.estimated_cost_usd,
+  captured_at = excluded.captured_at,
+  updated_at = now()
+`, row.UsageDate, row.Provider, row.InputTokens, row.CacheCreation, row.CacheRead, row.OutputTokens, row.TotalTokens, row.RequestCount, row.EstimatedCostUSD, row.CapturedAt)
+		if err != nil {
+			return fmt.Errorf("upsert daily usage snapshot: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit daily usage tx: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ListDailyUsage(ctx context.Context, limit int) ([]DailyUsageRow, error) {
+	if limit <= 0 {
+		limit = 60
+	}
+
+	rows, err := s.pool.Query(ctx, `
+select
+  to_char(usage_date, 'YYYY-MM-DD') as usage_date,
+  provider,
+  input_tokens,
+  cache_creation_tokens,
+  cache_read_tokens,
+  output_tokens,
+  total_tokens,
+  request_count,
+  estimated_cost_usd,
+  captured_at
+from daily_usage_snapshots
+order by usage_date desc, provider asc
+limit $1
+`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query daily usage snapshots: %w", err)
+	}
+	defer rows.Close()
+
+	var snapshots []DailyUsageRow
+	for rows.Next() {
+		var row DailyUsageRow
+		if err := rows.Scan(
+			&row.UsageDate,
+			&row.Provider,
+			&row.InputTokens,
+			&row.CacheCreation,
+			&row.CacheRead,
+			&row.OutputTokens,
+			&row.TotalTokens,
+			&row.RequestCount,
+			&row.EstimatedCostUSD,
+			&row.CapturedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan daily usage snapshot: %w", err)
+		}
+		snapshots = append(snapshots, row)
+	}
+	return snapshots, rows.Err()
 }
