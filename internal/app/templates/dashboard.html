@@ -286,10 +286,10 @@
       --overview-accent-3: var(--text-muted);
       --overview-accent-4: var(--fg);
       display: grid;
-      gap: 18px;
+      gap: 14px;
       width: 100%;
-      min-height: 560px;
-      padding: 22px 26px 24px;
+      min-height: 0;
+      padding: 18px 20px 20px;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: var(--overview-bg);
@@ -309,15 +309,17 @@
     }
 
     .range-button {
-      min-height: 40px;
+      min-height: 32px;
       border: 0;
-      border-radius: 8px;
+      border-radius: 6px;
       background: transparent;
       color: var(--overview-fg);
-      font-family: var(--font-body);
-      font-size: 24px;
-      line-height: 1;
-      padding: 8px 14px;
+      font-family: var(--font-display);
+      font-size: 12px;
+      letter-spacing: 1px;
+      line-height: 1.2;
+      padding: 6px 10px;
+      text-transform: uppercase;
       white-space: nowrap;
     }
 
@@ -334,7 +336,7 @@
     }
 
     .overview-chart-shell {
-      min-height: 300px;
+      min-height: 240px;
       overflow: hidden;
     }
 
@@ -346,8 +348,8 @@
 
     .overview-stat {
       min-width: 0;
-      min-height: 88px;
-      padding: 10px 8px;
+      min-height: 72px;
+      padding: 12px;
       border-radius: 8px;
       background: var(--overview-surface);
       border: 1px solid var(--overview-grid);
@@ -355,16 +357,19 @@
 
     .overview-stat-label {
       color: var(--overview-muted);
-      font-size: 24px;
-      line-height: 1.1;
+      font-family: var(--font-display);
+      font-size: 12px;
+      letter-spacing: 1px;
+      line-height: 1.3;
+      text-transform: uppercase;
       overflow-wrap: anywhere;
     }
 
     .overview-stat-value {
-      margin-top: 10px;
+      margin-top: 8px;
       color: var(--overview-strong);
       font-family: var(--font-display);
-      font-size: 26px;
+      font-size: 20px;
       line-height: 1;
       overflow-wrap: anywhere;
     }
@@ -377,10 +382,10 @@
     .overview-heatmap {
       display: grid;
       grid-auto-flow: column;
-      grid-auto-columns: minmax(18px, 1fr);
-      grid-template-rows: repeat(7, 30px);
-      gap: 6px;
-      min-height: 246px;
+      grid-auto-columns: minmax(10px, 1fr);
+      grid-template-rows: repeat(7, 18px);
+      gap: 4px;
+      min-height: 150px;
       overflow: hidden;
     }
 
@@ -408,13 +413,13 @@
 
     .overview-insight {
       color: var(--overview-muted);
-      font-size: 20px;
+      font-size: 14px;
       line-height: 1.35;
     }
 
     .overview-chart {
       width: 100%;
-      height: 300px;
+      height: 240px;
       display: block;
     }
 
@@ -426,11 +431,11 @@
 
     .overview-legend-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(260px, auto) minmax(72px, auto);
+      grid-template-columns: minmax(0, 1fr) minmax(200px, auto) minmax(56px, auto);
       align-items: center;
-      gap: 18px;
+      gap: 14px;
       color: var(--overview-fg);
-      font-size: 24px;
+      font-size: 14px;
       line-height: 1.25;
     }
 
@@ -448,10 +453,10 @@
     }
 
     .overview-swatch {
-      width: 16px;
-      height: 16px;
+      width: 10px;
+      height: 10px;
       flex: 0 0 auto;
-      border-radius: 3px;
+      border-radius: 2px;
     }
 
     .overview-legend-metric {
@@ -469,7 +474,7 @@
       min-height: 300px;
       place-items: center;
       color: var(--overview-subtle);
-      font-size: 18px;
+      font-size: 14px;
       text-align: center;
     }
 
@@ -803,13 +808,13 @@
       }
 
       .range-button {
-        font-size: 20px;
+        font-size: 12px;
       }
 
       .overview-legend-row {
         grid-template-columns: 1fr;
         gap: 2px;
-        font-size: 18px;
+        font-size: 14px;
       }
 
       .overview-stats-grid {
@@ -817,22 +822,22 @@
       }
 
       .overview-stat-label {
-        font-size: 18px;
+        font-size: 12px;
       }
 
       .overview-stat-value {
-        font-size: 22px;
+        font-size: 18px;
       }
 
       .overview-heatmap {
-        grid-auto-columns: 22px;
-        grid-template-rows: repeat(7, 24px);
+        grid-auto-columns: 16px;
+        grid-template-rows: repeat(7, 16px);
         overflow-x: auto;
         padding-bottom: 4px;
       }
 
       .overview-insight {
-        font-size: 16px;
+        font-size: 14px;
       }
 
       .overview-legend-metric,
@@ -1566,7 +1571,7 @@
           const y = height - padBottom - innerHeight * value / yMax;
           return `
             <line x1="${padLeft}" y1="${y.toFixed(2)}" x2="${width - padRight}" y2="${y.toFixed(2)}" stroke="var(--overview-grid)"></line>
-            <text x="${padLeft - 16}" y="${(y + 5).toFixed(2)}" text-anchor="end" fill="var(--overview-subtle)" font-size="18" font-family="Inter, Segoe UI, sans-serif">${fmtCompactNumber(value)}</text>
+            <text x="${padLeft - 16}" y="${(y + 4).toFixed(2)}" text-anchor="end" fill="var(--overview-subtle)" font-size="14" font-family="Inter, Segoe UI, sans-serif">${fmtCompactNumber(value)}</text>
           `;
         }).join('')}
         ${bars}
@@ -1574,7 +1579,7 @@
           const bucket = overview.buckets[index];
           const x = padLeft + slot * index + slot / 2;
           const anchor = index === 0 ? 'start' : index === overview.buckets.length - 1 ? 'end' : 'middle';
-          return `<text x="${x.toFixed(2)}" y="${height - 8}" text-anchor="${anchor}" fill="var(--overview-subtle)" font-size="20" font-family="Inter, Segoe UI, sans-serif">${escapeHTML(fmtOverviewDate(bucket.date))}</text>`;
+          return `<text x="${x.toFixed(2)}" y="${height - 10}" text-anchor="${anchor}" fill="var(--overview-subtle)" font-size="14" font-family="Inter, Segoe UI, sans-serif">${escapeHTML(fmtOverviewDate(bucket.date))}</text>`;
         }).join('')}
       `;
 
