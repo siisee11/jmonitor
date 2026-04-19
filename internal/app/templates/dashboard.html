@@ -297,7 +297,6 @@
     }
 
     .overview-toolbar,
-    .overview-tabs,
     .range-tabs {
       display: flex;
       align-items: center;
@@ -306,16 +305,9 @@
     }
 
     .overview-toolbar {
-      justify-content: space-between;
+      justify-content: flex-end;
     }
 
-    .overview-tabs {
-      color: var(--overview-fg);
-      font-size: 24px;
-      line-height: 1;
-    }
-
-    .overview-tab-label,
     .range-button {
       min-height: 40px;
       border: 0;
@@ -329,7 +321,6 @@
       white-space: nowrap;
     }
 
-    .overview-tab-label.active,
     .range-button.active {
       background: var(--overview-surface-strong);
     }
@@ -806,13 +797,11 @@
         align-items: flex-start;
       }
 
-      .overview-tabs,
       .range-tabs {
         width: 100%;
         flex-wrap: wrap;
       }
 
-      .overview-tab-label,
       .range-button {
         font-size: 20px;
       }
@@ -945,10 +934,6 @@
       <section class="section tab-panel" id="tab-panel-overview" role="tabpanel" aria-labelledby="tab-button-overview">
         <div class="overview-card">
           <div class="overview-toolbar">
-            <div class="overview-tabs" aria-label="Usage views">
-              <span class="overview-tab-label active">Overview</span>
-              <span class="overview-tab-label">Models</span>
-            </div>
             <div class="range-tabs" aria-label="Overview date range">
               <button class="range-button active" type="button" data-overview-range="all">All</button>
               <button class="range-button" type="button" data-overview-range="30">30d</button>
@@ -1548,7 +1533,7 @@
       const legend = document.getElementById('overview-legend');
       const width = 960;
       const height = 300;
-      const padLeft = 72;
+      const padLeft = 104;
       const padRight = 18;
       const padTop = 22;
       const padBottom = 42;
