@@ -951,7 +951,7 @@
             <div class="overview-insight" id="overview-insight"></div>
           </div>
           <div class="overview-chart-shell" id="overview-chart-shell">
-            <svg class="overview-chart" id="overview-chart" viewBox="0 0 960 300" preserveAspectRatio="none"></svg>
+            <svg class="overview-chart" id="overview-chart" viewBox="0 0 960 240"></svg>
           </div>
           <div class="overview-legend" id="overview-legend"></div>
         </div>
@@ -1508,7 +1508,7 @@
       const shell = document.getElementById('overview-chart-shell');
       let chart = document.getElementById('overview-chart');
       if (!chart) {
-        shell.innerHTML = '<svg class="overview-chart" id="overview-chart" viewBox="0 0 960 300" preserveAspectRatio="none"></svg>';
+        shell.innerHTML = '<svg class="overview-chart" id="overview-chart" viewBox="0 0 960 240"></svg>';
         chart = document.getElementById('overview-chart');
       }
       return chart;
@@ -1536,8 +1536,10 @@
 
       const chart = ensureOverviewChart();
       const legend = document.getElementById('overview-legend');
-      const width = 960;
-      const height = 300;
+      const chartBox = chart.getBoundingClientRect();
+      const width = Math.max(640, Math.round(chartBox.width || chart.clientWidth || 960));
+      const height = Math.max(200, Math.round(chartBox.height || chart.clientHeight || 240));
+      chart.setAttribute('viewBox', `0 0 ${width} ${height}`);
       const padLeft = 104;
       const padRight = 18;
       const padTop = 22;
