@@ -272,6 +272,130 @@
       white-space: nowrap;
     }
 
+    .overview-card {
+      display: grid;
+      gap: 18px;
+      width: 100%;
+      min-height: 560px;
+      padding: 22px 26px 24px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #f3f3f1;
+      color: #22252a;
+    }
+
+    .overview-toolbar,
+    .overview-tabs,
+    .range-tabs {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .overview-toolbar {
+      justify-content: space-between;
+    }
+
+    .overview-tabs {
+      color: #2a2d31;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .overview-tab-label,
+    .range-button {
+      min-height: 40px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: #2a2d31;
+      font-family: var(--font-body);
+      font-size: 24px;
+      line-height: 1;
+      padding: 8px 14px;
+      white-space: nowrap;
+    }
+
+    .overview-tab-label.active,
+    .range-button.active {
+      background: #e7e7e5;
+    }
+
+    .range-button {
+      cursor: pointer;
+    }
+
+    .range-button:hover {
+      background: #e9e9e7;
+    }
+
+    .overview-chart-shell {
+      min-height: 300px;
+      overflow: hidden;
+    }
+
+    .overview-chart {
+      width: 100%;
+      height: 300px;
+      display: block;
+    }
+
+    .overview-legend {
+      display: grid;
+      gap: 8px;
+      padding-top: 2px;
+    }
+
+    .overview-legend-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, auto) minmax(72px, auto);
+      align-items: center;
+      gap: 18px;
+      color: #25272b;
+      font-size: 24px;
+      line-height: 1.25;
+    }
+
+    .overview-legend-name,
+    .overview-legend-metric,
+    .overview-legend-share {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .overview-legend-name {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .overview-swatch {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      border-radius: 3px;
+    }
+
+    .overview-legend-metric {
+      color: #858585;
+      text-align: right;
+    }
+
+    .overview-legend-share {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .overview-empty {
+      display: grid;
+      min-height: 300px;
+      place-items: center;
+      color: #777;
+      font-size: 18px;
+      text-align: center;
+    }
+
     .chart-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -586,6 +710,39 @@
         grid-template-columns: 1fr;
       }
 
+      .overview-card {
+        min-height: 0;
+        padding: 18px 16px;
+      }
+
+      .overview-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .overview-tabs,
+      .range-tabs {
+        width: 100%;
+        flex-wrap: wrap;
+      }
+
+      .overview-tab-label,
+      .range-button {
+        font-size: 20px;
+      }
+
+      .overview-legend-row {
+        grid-template-columns: 1fr;
+        gap: 2px;
+        font-size: 18px;
+      }
+
+      .overview-legend-metric,
+      .overview-legend-share {
+        text-align: left;
+        padding-left: 26px;
+      }
+
       .history-dialog {
         width: calc(100% - 24px);
         max-height: calc(100dvh - 24px);
@@ -643,14 +800,25 @@
       <div class="tab-bar" role="tablist" aria-label="Dashboard sections">
         <button
           class="tab-button active"
-          id="tab-button-remaining"
+          id="tab-button-overview"
           type="button"
           role="tab"
           aria-selected="true"
+          aria-controls="tab-panel-overview"
+          data-tab-target="overview"
+        >
+          Overview
+        </button>
+        <button
+          class="tab-button"
+          id="tab-button-remaining"
+          type="button"
+          role="tab"
+          aria-selected="false"
           aria-controls="tab-panel-remaining"
           data-tab-target="remaining"
         >
-          Remaining Usage
+          Models
         </button>
         <button
           class="tab-button"
@@ -665,11 +833,31 @@
         </button>
       </div>
 
-      <section class="section tab-panel" id="tab-panel-remaining" role="tabpanel" aria-labelledby="tab-button-remaining">
+      <section class="section tab-panel" id="tab-panel-overview" role="tabpanel" aria-labelledby="tab-button-overview">
+        <div class="overview-card">
+          <div class="overview-toolbar">
+            <div class="overview-tabs" aria-label="Usage views">
+              <span class="overview-tab-label active">Overview</span>
+              <span class="overview-tab-label">Models</span>
+            </div>
+            <div class="range-tabs" aria-label="Overview date range">
+              <button class="range-button active" type="button" data-overview-range="all">All</button>
+              <button class="range-button" type="button" data-overview-range="30">30d</button>
+              <button class="range-button" type="button" data-overview-range="7">7d</button>
+            </div>
+          </div>
+          <div class="overview-chart-shell" id="overview-chart-shell">
+            <svg class="overview-chart" id="overview-chart" viewBox="0 0 960 300" preserveAspectRatio="none"></svg>
+          </div>
+          <div class="overview-legend" id="overview-legend"></div>
+        </div>
+      </section>
+
+      <section class="section tab-panel" id="tab-panel-remaining" role="tabpanel" aria-labelledby="tab-button-remaining" hidden>
         <div class="section-head">
           <div>
             <div class="section-kicker">Live Board</div>
-            <h1 class="section-title">Per-Account Limits</h1>
+            <h1 class="section-title">Models</h1>
           </div>
           <div class="section-copy">Each account is rendered as one row. Compare 5-hour and weekly remaining budget side by side, then click a row to inspect detailed history in a dialog.</div>
         </div>
@@ -728,7 +916,20 @@
   </div>
 
   <script>
-    const state = { accounts: [], dailyUsage: [], selected: null, historyRequest: 0, activeTab: 'remaining' };
+    const state = {
+      accounts: [],
+      dailyUsage: [],
+      selected: null,
+      historyRequest: 0,
+      activeTab: 'overview',
+      overviewRange: 'all'
+    };
+
+    const overviewColors = {
+      codex: '#3f7ed8',
+      claude: '#8bb4ec',
+      other: '#b8d1f6'
+    };
 
     async function fetchJSON(url) {
       const res = await fetch(url);
@@ -782,6 +983,25 @@
       if (provider === 'codex') return 'Codex';
       if (provider === 'claude') return 'Claude';
       return provider || '--';
+    }
+
+    function providerColor(provider) {
+      return overviewColors[provider] || overviewColors.other;
+    }
+
+    function fmtOverviewDate(value) {
+      const date = new Date(value + 'T00:00:00');
+      return date.toLocaleDateString([], {
+        month: 'short',
+        day: 'numeric'
+      });
+    }
+
+    function fmtCompactNumber(value) {
+      if (!Number.isFinite(value)) return "0";
+      if (value >= 1000000) return (value / 1000000).toFixed(1) + "M";
+      if (value >= 1000) return (value / 1000).toFixed(1) + "k";
+      return String(Math.round(value));
     }
 
     function statusText(account) {
@@ -846,6 +1066,14 @@
       document.querySelectorAll('.tab-panel').forEach(panel => {
         panel.hidden = panel.id !== `tab-panel-${tab}`;
       });
+    }
+
+    function setOverviewRange(range) {
+      state.overviewRange = range;
+      document.querySelectorAll('[data-overview-range]').forEach(button => {
+        button.classList.toggle('active', button.dataset.overviewRange === range);
+      });
+      renderOverview(state.dailyUsage);
     }
 
     function renderLimitBar(label, remaining, resetsAt) {
@@ -951,6 +1179,170 @@
           </tbody>
         </table>
       `;
+    }
+
+    function filteredOverviewRows(rows) {
+      if (!rows || rows.length === 0) return [];
+      if (state.overviewRange === 'all') return rows;
+
+      const days = Number(state.overviewRange);
+      if (!Number.isFinite(days)) return rows;
+
+      const latest = rows.reduce((max, row) => {
+        const ts = new Date(row.usageDate + 'T00:00:00').getTime();
+        return Number.isFinite(ts) ? Math.max(max, ts) : max;
+      }, 0);
+      if (!latest) return rows;
+
+      const cutoff = latest - (days - 1) * 24 * 60 * 60 * 1000;
+      return rows.filter(row => new Date(row.usageDate + 'T00:00:00').getTime() >= cutoff);
+    }
+
+    function buildOverview(rows) {
+      const filtered = filteredOverviewRows(rows);
+      const providers = Array.from(new Set(filtered.map(row => row.provider || 'other'))).sort();
+      const buckets = new Map();
+      const totals = new Map();
+
+      filtered.forEach(row => {
+        const provider = row.provider || 'other';
+        if (!buckets.has(row.usageDate)) {
+          buckets.set(row.usageDate, {
+            date: row.usageDate,
+            values: new Map()
+          });
+        }
+        const bucket = buckets.get(row.usageDate);
+        bucket.values.set(provider, (bucket.values.get(provider) || 0) + Number(row.totalTokens || 0));
+
+        const total = totals.get(provider) || {
+          provider,
+          input: 0,
+          output: 0,
+          total: 0
+        };
+        total.input += Number(row.inputTokens || 0) + Number(row.cacheCreationTokens || 0) + Number(row.cacheReadTokens || 0);
+        total.output += Number(row.outputTokens || 0);
+        total.total += Number(row.totalTokens || 0);
+        totals.set(provider, total);
+      });
+
+      return {
+        providers,
+        buckets: Array.from(buckets.values()).sort((a, b) => a.date.localeCompare(b.date)),
+        totals: Array.from(totals.values()).sort((a, b) => b.total - a.total)
+      };
+    }
+
+    function niceOverviewMax(value) {
+      if (!Number.isFinite(value) || value <= 0) return 1000;
+      const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+      const normalized = value / magnitude;
+      const step = normalized <= 2 ? 0.5 : normalized <= 5 ? 1 : 2;
+      return Math.ceil(normalized / step) * step * magnitude;
+    }
+
+    function overviewTickIndexes(count) {
+      if (count <= 1) return [0];
+      const target = Math.min(8, count);
+      const indexes = new Set();
+      for (let i = 0; i < target; i++) {
+        indexes.add(Math.round(i * (count - 1) / (target - 1)));
+      }
+      return Array.from(indexes).sort((a, b) => a - b);
+    }
+
+    function renderOverviewEmpty(message) {
+      document.getElementById('overview-chart-shell').innerHTML = '<div class="overview-empty">' + escapeHTML(message) + '</div>';
+      document.getElementById('overview-legend').innerHTML = '';
+    }
+
+    function ensureOverviewChart() {
+      const shell = document.getElementById('overview-chart-shell');
+      let chart = document.getElementById('overview-chart');
+      if (!chart) {
+        shell.innerHTML = '<svg class="overview-chart" id="overview-chart" viewBox="0 0 960 300" preserveAspectRatio="none"></svg>';
+        chart = document.getElementById('overview-chart');
+      }
+      return chart;
+    }
+
+    function renderOverview(rows, errorMessage) {
+      if (errorMessage) {
+        renderOverviewEmpty(errorMessage);
+        return;
+      }
+      if (!rows || rows.length === 0) {
+        renderOverviewEmpty('No local usage transcripts found yet.');
+        return;
+      }
+
+      const overview = buildOverview(rows);
+      if (overview.buckets.length === 0) {
+        renderOverviewEmpty('No usage in this range.');
+        return;
+      }
+
+      const chart = ensureOverviewChart();
+      const legend = document.getElementById('overview-legend');
+      const width = 960;
+      const height = 300;
+      const padLeft = 72;
+      const padRight = 18;
+      const padTop = 22;
+      const padBottom = 42;
+      const innerWidth = width - padLeft - padRight;
+      const innerHeight = height - padTop - padBottom;
+      const dailyTotals = overview.buckets.map(bucket => (
+        overview.providers.reduce((sum, provider) => sum + (bucket.values.get(provider) || 0), 0)
+      ));
+      const yMax = niceOverviewMax(Math.max(...dailyTotals));
+      const slot = innerWidth / Math.max(overview.buckets.length, 1);
+      const barWidth = Math.max(4, Math.min(18, slot * 0.58));
+      const yTicks = [0, 0.25, 0.5, 0.75, 1].map(ratio => yMax * ratio);
+      const tickIndexes = overviewTickIndexes(overview.buckets.length);
+
+      const bars = overview.buckets.map((bucket, bucketIndex) => {
+        const x = padLeft + slot * bucketIndex + (slot - barWidth) / 2;
+        let stackY = height - padBottom;
+        return overview.providers.map(provider => {
+          const value = bucket.values.get(provider) || 0;
+          if (value <= 0) return '';
+          const barHeight = innerHeight * value / yMax;
+          stackY -= barHeight;
+          return `<rect x="${x.toFixed(2)}" y="${stackY.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${barHeight.toFixed(2)}" fill="${providerColor(provider)}" rx="1"></rect>`;
+        }).join('');
+      }).join('');
+
+      chart.innerHTML = `
+        <rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>
+        ${yTicks.map(value => {
+          const y = height - padBottom - innerHeight * value / yMax;
+          return `
+            <line x1="${padLeft}" y1="${y.toFixed(2)}" x2="${width - padRight}" y2="${y.toFixed(2)}" stroke="rgba(0,0,0,0.035)"></line>
+            <text x="${padLeft - 16}" y="${(y + 5).toFixed(2)}" text-anchor="end" fill="#808080" font-size="18" font-family="Inter, Segoe UI, sans-serif">${fmtCompactNumber(value)}</text>
+          `;
+        }).join('')}
+        ${bars}
+        ${tickIndexes.map(index => {
+          const bucket = overview.buckets[index];
+          const x = padLeft + slot * index + slot / 2;
+          const anchor = index === 0 ? 'start' : index === overview.buckets.length - 1 ? 'end' : 'middle';
+          return `<text x="${x.toFixed(2)}" y="${height - 8}" text-anchor="${anchor}" fill="#808080" font-size="20" font-family="Inter, Segoe UI, sans-serif">${escapeHTML(fmtOverviewDate(bucket.date))}</text>`;
+        }).join('')}
+      `;
+
+      const totalAll = overview.totals.reduce((sum, item) => sum + item.total, 0);
+      legend.innerHTML = overview.totals.map(item => {
+        const share = totalAll > 0 ? item.total * 100 / totalAll : 0;
+        return `
+          <div class="overview-legend-row">
+            <div class="overview-legend-name"><span class="overview-swatch" style="background:${providerColor(item.provider)}"></span>${escapeHTML(providerLabel(item.provider))}</div>
+            <div class="overview-legend-metric">${escapeHTML(fmtCompactNumber(item.input))} in · ${escapeHTML(fmtCompactNumber(item.output))} out</div>
+            <div class="overview-legend-share">${share.toFixed(1)}%</div>
+          </div>
+        `;
+      }).join('');
     }
 
     function resetCharts() {
@@ -1074,6 +1466,10 @@
         state.dailyUsage,
         dailyUsageResult.status === 'rejected' ? dailyUsageResult.reason.message : ''
       );
+      renderOverview(
+        state.dailyUsage,
+        dailyUsageResult.status === 'rejected' ? dailyUsageResult.reason.message : ''
+      );
 
       if (state.selected && document.getElementById('history-dialog').open) {
         await renderAccountHistory(state.selected);
@@ -1097,6 +1493,11 @@
         setActiveTab(button.dataset.tabTarget);
       });
     });
+    document.querySelectorAll('[data-overview-range]').forEach(button => {
+      button.addEventListener('click', () => {
+        setOverviewRange(button.dataset.overviewRange);
+      });
+    });
     historyDialog.addEventListener('click', event => {
       if (event.target === historyDialog) {
         clearHistorySelection();
@@ -1111,6 +1512,7 @@
     refresh().catch(err => {
       document.getElementById('accounts-grid').innerHTML = '<div class="empty">' + escapeHTML(err.message) + '</div>';
       document.getElementById('daily-usage-grid').innerHTML = '<div class="empty">' + escapeHTML(err.message) + '</div>';
+      renderOverviewEmpty(err.message);
     });
     setInterval(() => refresh().catch(() => {}), 30000);
   </script>
